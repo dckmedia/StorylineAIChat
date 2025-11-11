@@ -18,6 +18,7 @@
   .ai { color: blue; margin: 5px 0; }
   .user { color: green; margin: 5px 0; }
   .mood { font-size: 0.8em; color: gray; margin-left: 5px; }
+  .chattext { font-size:1em;}
   #finishBtn { margin-left: 10px; }
 </style>
 </head>
@@ -42,7 +43,7 @@ const sessionId = "student_" + Date.now();
 function addMessage(sender, text, mood = "") {
   const div = document.createElement("div");
   div.className = sender;
-  div.innerHTML = `<strong>${sender}:</strong> ${text} <span class="mood">${mood}</span>`;
+  div.innerHTML = `<strong>${sender}:</strong> <p class='chattext'>${text}</p>`;
   chat.appendChild(div);
   
   // Auto-scroll to bottom
