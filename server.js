@@ -6,7 +6,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// store conversation states (in memory for demo)
+// Store session data in memory (for demo purposes)
 const sessions = {};
 
 app.post("/chat", async (req, res) => {
@@ -16,68 +16,106 @@ app.post("/chat", async (req, res) => {
     return res.status(400).json({ error: "Missing sessionId" });
   }
 
-  // Create a new session if doesn't exist
+  // Create new session if not exists
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      mood: "angry", // starting mood
-      history: []
+      mood: "annoyed", // starting mood
+      history: [],
+      resolved: false
     };
   }
 
   const session = sessions[sessionId];
 
-  // Add user message to history
+  // Add learner message to session history
   session.history.push({ role: "user", content: message });
 
-  // Construct system prompt
-  const systemPrompt = `
-You are an AI acting as a customer named Alex.
+  // Check if learner is asking for rating
+  const ratingAsked = /rate.*service.*\?/i.test(message);
+
+  let systemPrompt;
+
+  if (ratingAsked) {
+    // System prompt for rating calculation
+    systemPrompt = `
+You are Alex, a customer who could not log in to their online account. 
+Based on the conversation history, rate the learner's service on a scale from 1-10.
+- Consider empathy, resolution speed, professionalism.
+- Provide a short comment explaining the rating.
+- Respond in strict JSON format: { "rating": number, "comment": "short feedback" }
+- Example: { "rating": 9, "comment": "Very helpful and patient." }
+`;
+  } else {
+    // System prompt for normal conversation
+    systemPrompt = `
+You are a customer named Alex who cannot log in to their account.
 Current emotional state: ${session.mood}.
-Scenario: You ordered a laptop that arrived 3 days late.
+Scenario: Customer has login trouble and is slightly annoyed.
 
-Rules:
-- If the learner apologizes sincerely, shows empathy, or takes responsibility → calm down one level.
-- If the learner offers a clear solution → calm down one level.
-- If the learner ignores your frustration or gives robotic replies → get angrier one level.
-- Respond naturally, realistically, without profanity.
-- Keep your message short (under 3 sentences).
-- At the end of your response, include your new emotion in brackets, e.g. [calm], [angry], [very_angry].
-  `;
+Behavior rules:
+- Start slightly annoyed but polite.
+- Calm down if learner is empathetic, professional, or resolves the issue.
+- Get mildly annoyed if learner is dismissive or robotic.
+- Keep replies natural, short (2-3 sentences), and conversational.
+- End message with new emotion in square brackets, e.g. [calm], [annoyed], [neutral].
+`;
+  }
 
+  // Construct messages array for OpenAI
   const messages = [
     { role: "system", content: systemPrompt },
-    ...session.history.slice(-6) // keep last few exchanges
+    ...session.history.slice(-6) // last few exchanges for context
   ];
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages
-    })
-  });
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.7,
+        messages
+      })
+    });
 
-  const data = await response.json();
-  const aiReply = data.choices[0].message.content.trim();
+    const data = await response.json();
+    const aiReply = data.choices[0].message.content.trim();
 
-  // Extract new mood (e.g. from "[calm]")
-  const moodMatch = aiReply.match(/\[(.*?)\]$/);
-  const newMood = moodMatch ? moodMatch[1] : session.mood;
+    if (ratingAsked) {
+      // Return rating as JSON
+      let ratingObj;
+      try {
+        ratingObj = JSON.parse(aiReply);
+      } catch {
+        ratingObj = { rating: 5, comment: "Average service." };
+      }
+      return res.json(ratingObj);
+    }
 
-  // Update stored mood & add assistant message
-  session.mood = newMood;
-  session.history.push({ role: "assistant", content: aiReply });
+    // Extract new mood from AI reply (e.g., [calm])
+    const moodMatch = aiReply.match(/\[(.*?)\]$/);
+    const newMood = moodMatch ? moodMatch[1].toLowerCase() : session.mood;
 
-  res.json({
-    reply: aiReply.replace(/\[(.*?)\]$/, "").trim(),
-    mood: newMood
-  });
+    // Update session
+    session.mood = newMood;
+    session.history.push({ role: "assistant", content: aiReply });
+
+    // Respond to learner
+    res.json({
+      reply: aiReply.replace(/\[(.*?)\]$/, "").trim(),
+      mood: newMood
+    });
+
+  } catch (err) {
+    console.error("Error:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
-app.get("/", (req, res) => res.send("AI Customer Chat API is running ✅"));
+// Health check
+app.get("/", (req, res) => res.send("AI Customer Chat API (Login Issue Scenario) ✅"));
 
 app.listen(3000, () => console.log("Server running on port 3000"));
