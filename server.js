@@ -2,9 +2,14 @@ import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 import cors from "cors";
-app.use(cors())
+
 dotenv.config();
 const app = express();
+
+// Enable CORS
+app.use(cors());
+
+// Parse JSON bodies
 app.use(express.json());
 
 // Store session data in memory (for demo purposes)
@@ -20,15 +25,13 @@ app.post("/chat", async (req, res) => {
   // Create new session if not exists
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      mood: "annoyed", // starting mood
+      mood: "annoyed",
       history: [],
       resolved: false
     };
   }
 
   const session = sessions[sessionId];
-
-  // Add learner message to session history
   session.history.push({ role: "user", content: message });
 
   // Check if learner is asking for rating
@@ -37,7 +40,6 @@ app.post("/chat", async (req, res) => {
   let systemPrompt;
 
   if (ratingAsked) {
-    // System prompt for rating calculation
     systemPrompt = `
 You are Alex, a customer who could not log in to their online account. 
 Based on the conversation history, rate the learner's service on a scale from 1-10.
@@ -47,7 +49,6 @@ Based on the conversation history, rate the learner's service on a scale from 1-
 - Example: { "rating": 9, "comment": "Very helpful and patient." }
 `;
   } else {
-    // System prompt for normal conversation
     systemPrompt = `
 You are a customer named Alex who cannot log in to their account.
 Current emotional state: ${session.mood}.
@@ -62,10 +63,9 @@ Behavior rules:
 `;
   }
 
-  // Construct messages array for OpenAI
   const messages = [
     { role: "system", content: systemPrompt },
-    ...session.history.slice(-6) // last few exchanges for context
+    ...session.history.slice(-6)
   ];
 
   try {
@@ -86,7 +86,6 @@ Behavior rules:
     const aiReply = data.choices[0].message.content.trim();
 
     if (ratingAsked) {
-      // Return rating as JSON
       let ratingObj;
       try {
         ratingObj = JSON.parse(aiReply);
@@ -96,15 +95,12 @@ Behavior rules:
       return res.json(ratingObj);
     }
 
-    // Extract new mood from AI reply (e.g., [calm])
     const moodMatch = aiReply.match(/\[(.*?)\]$/);
     const newMood = moodMatch ? moodMatch[1].toLowerCase() : session.mood;
 
-    // Update session
     session.mood = newMood;
     session.history.push({ role: "assistant", content: aiReply });
 
-    // Respond to learner
     res.json({
       reply: aiReply.replace(/\[(.*?)\]$/, "").trim(),
       mood: newMood
@@ -116,7 +112,6 @@ Behavior rules:
   }
 });
 
-// Health check
 app.get("/", (req, res) => res.send("AI Customer Chat API (Login Issue Scenario) ✅"));
 
 app.listen(3000, () => console.log("Server running on port 3000"));
