@@ -4,8 +4,16 @@
 <meta charset="UTF-8">
 <title>AI Customer Chat Simulation</title>
 <style>
-  body { font-family: Arial, sans-serif; padding: 20px; }
-  #chat { border: 1px solid #ccc; padding: 10px; width: 400px; height: 400px; overflow-y: auto; margin-bottom: 10px; }
+  body { font-family: Arial; padding: 20px; }
+  #chat {
+    border: 1px solid #ccc;
+    padding: 10px;
+    width: 400px;
+    height: 400px;        /* Fixed height to enable scrolling */
+    overflow-y: auto;     /* Makes it scrollable */
+    margin-bottom: 10px;
+    background-color: #f9f9f9;
+  }
   #input { width: 300px; padding: 5px; }
   .ai { color: blue; margin: 5px 0; }
   .user { color: green; margin: 5px 0; }
