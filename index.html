@@ -44,6 +44,8 @@ function addMessage(sender, text, mood = "") {
   div.className = sender;
   div.innerHTML = `<strong>${sender}:</strong> ${text} <span class="mood">${mood}</span>`;
   chat.appendChild(div);
+  
+  // Auto-scroll to bottom
   chat.scrollTop = chat.scrollHeight;
 }
 
