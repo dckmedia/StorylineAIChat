@@ -1,9 +1,11 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
+
 const app = express();
 
 
@@ -11,9 +13,15 @@ const app = express();
 // Parse JSON bodies
 app.use(express.json());
 
-// Store session data in memory (for demo purposes)
+// Serve static files from the same folder
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use(express.static(__dirname));
+
+// Memory storage for sessions (for demo purposes)
 const sessions = {};
 
+// Chat endpoint
 app.post("/chat", async (req, res) => {
   const { message, sessionId } = req.body;
 
@@ -21,24 +29,27 @@ app.post("/chat", async (req, res) => {
     return res.status(400).json({ error: "Missing sessionId" });
   }
 
-  // Create new session if not exists
+  // Initialize session if it doesn't exist
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      mood: "annoyed",
+      mood: "annoyed", // starting mood
       history: [],
       resolved: false
     };
   }
 
   const session = sessions[sessionId];
+
+  // Add learner message to history
   session.history.push({ role: "user", content: message });
 
-  // Check if learner is asking for rating
+  // Detect if learner is asking for rating
   const ratingAsked = /rate.*service.*\?/i.test(message);
 
   let systemPrompt;
 
   if (ratingAsked) {
+    // Rating system prompt
     systemPrompt = `
 You are Alex, a customer who could not log in to their online account. 
 Based on the conversation history, rate the learner's service on a scale from 1-10.
@@ -48,6 +59,7 @@ Based on the conversation history, rate the learner's service on a scale from 1-
 - Example: { "rating": 9, "comment": "Very helpful and patient." }
 `;
   } else {
+    // Normal conversation prompt
     systemPrompt = `
 You are a customer named Alex who cannot log in to their account.
 Current emotional state: ${session.mood}.
@@ -64,7 +76,7 @@ Behavior rules:
 
   const messages = [
     { role: "system", content: systemPrompt },
-    ...session.history.slice(-6)
+    ...session.history.slice(-6) // last few exchanges for context
   ];
 
   try {
@@ -85,6 +97,7 @@ Behavior rules:
     const aiReply = data.choices[0].message.content.trim();
 
     if (ratingAsked) {
+      // Return rating as JSON
       let ratingObj;
       try {
         ratingObj = JSON.parse(aiReply);
@@ -94,12 +107,15 @@ Behavior rules:
       return res.json(ratingObj);
     }
 
+    // Extract AI mood (e.g., [calm])
     const moodMatch = aiReply.match(/\[(.*?)\]$/);
     const newMood = moodMatch ? moodMatch[1].toLowerCase() : session.mood;
 
+    // Update session
     session.mood = newMood;
     session.history.push({ role: "assistant", content: aiReply });
 
+    // Respond to learner
     res.json({
       reply: aiReply.replace(/\[(.*?)\]$/, "").trim(),
       mood: newMood
@@ -111,6 +127,10 @@ Behavior rules:
   }
 });
 
-app.get("/", (req, res) => res.send("AI Customer Chat API (Login Issue Scenario) ✅"));
+// Serve frontend HTML at root
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 
-app.listen(3000, () => console.log("Server running on port 3000"));
+// Start server
+app.listen(3000, () => console.log("Server running on port 3000 ✅"));
