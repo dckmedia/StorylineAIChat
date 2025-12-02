@@ -153,6 +153,37 @@ input.addEventListener("keypress", e => {
 });
 
 // Finish conversation
+function sendMessage(message, sender = "You") {
+  if (!message) return;
+
+  // Show message in chat
+  addMessage(sender, message);
+
+  // Don’t send to backend if it's Alex or system
+  if (sender !== "You") return;
+
+  input.value = "";
+  showTyping();
+
+  fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, message })
+  })
+    .then(res => res.json())
+    .then(data => {
+      hideTyping();
+      if (data.reply) {
+        addMessage("Alex", data.reply, data.mood || "");
+      }
+    })
+    .catch(err => {
+      hideTyping();
+      console.error(err);
+      addMessage("Alex", "Error contacting server.");
+    });
+}
+
 finishBtn.addEventListener("click", () => {
   sendMessage("On a scale of 1-10, how would you rate my service today?");
 });
