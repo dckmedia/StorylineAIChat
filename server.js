@@ -44,10 +44,18 @@ app.post("/chat", async (req, res) => {
   session.history.push({ role: "user", content: message });
 
   // Detect if learner is asking for rating
-  const ratingAsked = /rate.*service.*\?/i.test(message);
+  const ratingAsked = /(rate|rating|score).*(service|today|chat)/i.test(message);
 
+  // Prevent rating if issue is not resolved
+  if (ratingAsked && !session.resolved) {
+    return res.json({
+      error: "NOT_RESOLVED",
+      message: "Please provide a solution before asking for a rating."
+    });
+  }
+
+  // Prepare system prompt
   let systemPrompt;
-
   if (ratingAsked) {
     // Rating system prompt
     systemPrompt = `
@@ -80,13 +88,14 @@ Behaviour guidelines:
 - If the learner is vague, dismissive, or robotic, your frustration increases.
 - Provide information gradually depending on their questions.
 - Keep responses natural and brief (2–3 sentences).
-- if the user ask On a scale of 1-10 how would you rate my service today?, before providing you a satisfied solution please say yo need to provde a solution before asking for rating.`
-;
+- If the user asks for a rating before the issue is resolved, respond: "I need a solution first before I can give a rating."
+`;
   }
 
+  // Build message array
   const messages = [
     { role: "system", content: systemPrompt },
-    ...session.history.slice(-6) // last few exchanges for context
+    ...session.history.slice(-6) // last few exchanges
   ];
 
   try {
@@ -106,6 +115,11 @@ Behaviour guidelines:
     const data = await response.json();
     const aiReply = data.choices[0].message.content.trim();
 
+    // Mark session as resolved if AI indicates the issue was fixed
+    if (/should now be able to log in|issue resolved|try logging in now/i.test(aiReply)) {
+      session.resolved = true;
+    }
+
     if (ratingAsked) {
       // Return rating as JSON
       let ratingObj;
@@ -117,7 +131,7 @@ Behaviour guidelines:
       return res.json(ratingObj);
     }
 
-    // Extract AI mood (e.g., [calm])
+    // Extract AI mood (optional, e.g., [calm])
     const moodMatch = aiReply.match(/\[(.*?)\]$/);
     const newMood = moodMatch ? moodMatch[1].toLowerCase() : session.mood;
 
@@ -128,7 +142,8 @@ Behaviour guidelines:
     // Respond to learner
     res.json({
       reply: aiReply.replace(/\[(.*?)\]$/, "").trim(),
-      mood: newMood
+      mood: newMood,
+      resolved: session.resolved
     });
 
   } catch (err) {
@@ -136,6 +151,7 @@ Behaviour guidelines:
     res.status(500).json({ error: "Something went wrong" });
   }
 });
+
 
 // Serve frontend HTML at root
 app.get("/", (req, res) => {
