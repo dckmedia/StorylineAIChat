@@ -51,7 +51,7 @@ function addMessage(sender, text, mood = "") {
   else if (mood === "neutral") { moodEmoji = "😐"; moodColor = "gray"; }
   else if (mood === "calm") { moodEmoji = "🙂"; moodColor = "green"; }
 
-  if (sender === "AI") {
+  if (sender === "Alex ") {
     div.innerHTML = `<strong>${sender}:</strong> <p class='chattext'>${text}</p> <span class="mood" style="color:${moodColor}">${moodEmoji}</span>`;
   } else {
     div.innerHTML = `<strong>${sender}:</strong> <p class='chattext'>${text}</p>`;
@@ -75,12 +75,12 @@ function sendMessage(message) {
   .then(res => res.json())
   .then(data => {
     if (data.reply) {
-      addMessage("AI", data.reply, data.mood || "");
+      addMessage("Alex", data.reply, data.mood || "");
     }
   })
   .catch(err => {
     console.error(err);
-    addMessage("AI", "Error contacting server.");
+    addMessage("Alex", "Error contacting server.");
   });
 }
 
@@ -104,11 +104,11 @@ finishBtn.addEventListener("click", () => {
   })
   .then(res => res.json())
   .then(data => {
-    addMessage("AI", `Rating: ${data.rating}, Comment: ${data.comment}`);
+    addMessage("Alex", `Rating: ${data.rating}, Comment: ${data.comment}`);
   })
   .catch(err => {
     console.error(err);
-    addMessage("AI", "Error fetching rating.");
+    addMessage("Alex", "Error fetching rating.");
   });
 });
 </script>
