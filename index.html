@@ -9,23 +9,50 @@
     border: 1px solid #ccc;
     padding: 10px;
     width: 600px;
-    height: 300px;        /* Fixed height for scrolling */
-    overflow-y: auto;     /* Enables scrolling */
+    height: 300px;
+    overflow-y: auto;
     margin-bottom: 10px;
     background-color: #f9f9f9;
   }
-  #input { width: 300px; padding: 5px; }
-  .ai { color: blue; margin: 5px 0; }
-  .user { color: green; margin: 5px 0; }
-  .mood { font-size: 1.2em; margin-left: 5px; vertical-align: middle; }
-  .chattext { font-size:0.9em; margin: 2px 0; }
-  #finishBtn { margin-left: 10px; }
+
+  .message {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  .text-block {
+    max-width: 500px;
+  }
+
+  .ai { color: blue; }
+  .user { color: green; }
+  .mood { font-size: 1.2em; margin-left: 5px; }
+  .chattext { font-size: 0.9em; margin: 2px 0; }
+
+  #typingIndicator {
+    font-style: italic;
+    color: gray;
+    margin-top: 5px;
+    display: none;
+  }
 </style>
 </head>
 <body>
 
 <h2>AI Customer Chat Simulation</h2>
 <div id="chat"></div>
+
+<div id="typingIndicator">Alex is typing<span id="dots">.</span></div>
+
 <input type="text" id="input" placeholder="Type your message..." />
 <button id="sendBtn">Send</button>
 <button id="finishBtn">Finish</button>
@@ -36,80 +63,116 @@ const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 const finishBtn = document.getElementById("finishBtn");
 
+const typingIndicator = document.getElementById("typingIndicator");
+const dots = document.getElementById("dots");
+
+// Avatar image for Alex
+const alexAvatar = "https://i.imgur.com/PX1gJ9Z.png";
+
 // Unique session ID
 const sessionId = "student_" + Date.now();
+
+// Typing dots animation
+setInterval(() => {
+  dots.textContent = dots.textContent.length < 3 ? dots.textContent + "." : ".";
+}, 400);
 
 // Display message in chat
 function addMessage(sender, text, mood = "") {
   const div = document.createElement("div");
-  div.className = sender;
+  div.classList.add("message");
 
-  let moodEmoji = "";
-  let moodColor = "gray";
-
-  if (mood === "annoyed") { moodEmoji = "😠"; moodColor = "red"; }
-  else if (mood === "neutral") { moodEmoji = "😐"; moodColor = "gray"; }
-  else if (mood === "calm") { moodEmoji = "🙂"; moodColor = "green"; }
+  let avatarHTML = "";
+  let moodHTML = "";
 
   if (sender === "Alex") {
-    div.innerHTML = `<strong>${sender}:</strong> <p class='chattext'>${text}</p> <span class="mood" style="color:${moodColor}">${moodEmoji}</span>`;
-  } else {
-    div.innerHTML = `<strong>${sender}:</strong> <p class='chattext'>${text}</p>`;
+    let moodEmoji = "";
+    let moodColor = "gray";
+
+    if (mood === "annoyed") { moodEmoji = "😠"; moodColor = "red"; }
+    else if (mood === "neutral") { moodEmoji = "😐"; moodColor = "gray"; }
+    else if (mood === "calm") { moodEmoji = "🙂"; moodColor = "green"; }
+
+    moodHTML = mood ? `<span class="mood" style="color:${moodColor}">${moodEmoji}</span>` : "";
+    avatarHTML = `<img class="avatar" src="${alexAvatar}" alt="Alex">`;
   }
 
+  div.innerHTML = `
+    ${avatarHTML}
+    <div class="text-block">
+      <strong>${sender}:</strong> <p class='chattext'>${text}</p> ${moodHTML}
+    </div>
+  `;
+
   chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight; // auto-scroll
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// Show typing
+function showTyping() {
+  typingIndicator.style.display = "block";
+}
+
+// Hide typing
+function hideTyping() {
+  typingIndicator.style.display = "none";
 }
 
 // Send learner message to server
 function sendMessage(message) {
   if (!message) return;
+
   addMessage("You", message);
   input.value = "";
 
+  showTyping();
+
   fetch("/chat", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId, message })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.reply) {
-      addMessage("Alex", data.reply, data.mood || "");
-    }
-  })
-  .catch(err => {
-    console.error(err);
-    addMessage("Alex", "Error contacting server.");
-  });
+    .then(res => res.json())
+    .then(data => {
+      hideTyping();
+      if (data.reply) {
+        addMessage("Alex", data.reply, data.mood || "");
+      }
+    })
+    .catch(err => {
+      hideTyping();
+      console.error(err);
+      addMessage("Alex", "Error contacting server.");
+    });
 }
 
-// Send button
+// Button events
 sendBtn.addEventListener("click", () => sendMessage(input.value));
-
-// Enter key
 input.addEventListener("keypress", e => {
   if (e.key === "Enter") sendMessage(input.value);
 });
 
-// Finish conversation and get rating
+// Finish conversation
 finishBtn.addEventListener("click", () => {
+  showTyping(); 
   fetch("/chat", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       sessionId,
       message: "On a scale of 1-10, how would you rate my service today?"
     })
   })
-  .then(res => res.json())
-  .then(data => {
-    addMessage("Alex", `Rating: ${data.rating}, Comment: ${data.comment}`);
-  })
-  .catch(err => {
-    console.error(err);
-    addMessage("Alex", "Error fetching rating.");
-  });
+    .then(res => res.json())
+    .then(data => {
+      hideTyping();
+      addMessage("Alex", `Rating: ${data.rating}, Comment: ${data.comment}`);
+    })
+    .catch(err => {
+      hideTyping();
+      console.error(err);
+      addMessage("Alex", "Error fetching rating.");
+    });
 });
 </script>
 
