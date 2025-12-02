@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(__dirname));
 
-// Memory storage for sessions
+// In-memory session store
 const sessions = {};
 
 // Chat endpoint
@@ -21,6 +21,7 @@ app.post("/chat", async (req, res) => {
 
   if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
 
+  // Initialize session if not exists
   if (!sessions[sessionId]) {
     sessions[sessionId] = { mood: "annoyed", history: [], resolved: false };
   }
@@ -28,8 +29,10 @@ app.post("/chat", async (req, res) => {
   const session = sessions[sessionId];
   session.history.push({ role: "user", content: message });
 
+  // Detect if user is asking for rating
   const ratingAsked = /(rate|rating|score).*(service|today|chat)/i.test(message);
 
+  // Prevent rating before resolution
   if (ratingAsked && !session.resolved) {
     return res.json({
       error: "NOT_RESOLVED",
@@ -38,31 +41,37 @@ app.post("/chat", async (req, res) => {
     });
   }
 
-  // System prompt
+  // Prepare system prompt
   let systemPrompt = "";
   if (ratingAsked) {
     systemPrompt = `
 You are Alex, a customer who could not log in to their account. 
-Based on the conversation history, rate the learner's service on a scale from 1-10.
-- Assess the learner based on three skills: empathy, clarifying questions, resolving efficiently.
-- Respond in strict JSON only: { "rating": number, "comment": "short feedback" }
-- Example: { "rating": 9, "comment": "Very helpful and patient." }
+Rate the learner's service **only after the issue is resolved**.
+Assess based on three skills:
+1. Empathy
+2. Asking clarifying questions
+3. Resolving efficiently
+
+Respond **strictly in JSON format only**:
+{ "rating": number, "comment": "short feedback" }
+
+Do not include any text outside the JSON.
+Example: { "rating": 9, "comment": "Very helpful and patient." }
 `;
   } else {
     systemPrompt = `
-You are Alex, a customer who cannot log in to their account.
-Act mildly frustrated but polite.
+You are Alex, a mildly frustrated customer who cannot log in to their account.
 Respond naturally in 2-3 sentences.
 
 Rules:
-- Only give information when asked.
-- If the learner provides a working solution (password reset link, temporary password, instructions to log in), include the word RESOLVED somewhere in your response to indicate the issue is resolved.
-- While chatting, continuously assess the learner based on three skills:
+- Only give info when asked.
+- If learner provides a working solution (password reset link, temporary password, instructions to log in), include the word "RESOLVED" in your reply (do not include !).
+- Continuously assess the learner on:
   1. Empathy
   2. Asking clarifying questions
   3. Resolving efficiently
-- Track mood: annoyed → neutral → calm depending on how helpful the learner is.
-- If the user asks for a rating before resolution, reply: "Please provide a solution before asking for a rating."
+- Track mood: "annoyed" → "neutral" → "calm" depending on helpfulness.
+- If the user asks for rating before resolution, reply: "Please provide a solution before asking for a rating."
 `;
   }
 
@@ -85,39 +94,37 @@ Rules:
       })
     });
 
-    const data = await response.json();
-    let aiReply = data.choices[0].message.content.trim();
+    let aiReply = (await response.json()).choices[0].message.content.trim();
 
     // Detect resolution
-    if (/RESOLVED/i.test(aiReply)) {
+    if (/RESOLVED/i.test(aiReply) || /(successfully reset|able to log in|issue resolved)/i.test(aiReply)) {
       session.resolved = true;
       aiReply = aiReply.replace(/RESOLVED/i, "").trim();
     }
 
-    // Update mood automatically
+    // Update mood
     if (session.resolved) {
       session.mood = "calm";
+    } else if (/thank|appreciate|good|helpful|try/i.test(aiReply)) {
+      session.mood = "neutral";
     } else {
-      // Check AI reply for helpful hints to improve mood
-      if (/thank|appreciate|good|helpful|try/i.test(aiReply)) {
-        session.mood = "neutral";
-      } else {
-        session.mood = "annoyed";
-      }
+      session.mood = "annoyed";
     }
 
     // Handle rating
     if (ratingAsked && session.resolved) {
       let ratingObj = { rating: 5, comment: "Average service." };
       try {
-        const jsonMatch = aiReply.match(/\{[\s\S]*\}/);
+        // Match JSON anywhere in the AI reply
+        const jsonMatch = aiReply.replace(/\n/g, "").match(/\{[^]*\}/);
         if (jsonMatch) ratingObj = JSON.parse(jsonMatch[0]);
       } catch (err) {
-        console.warn("Failed to parse AI JSON:", err);
+        console.warn("Failed to parse AI JSON:", err, "AI reply:", aiReply);
       }
       return res.json({ ...ratingObj, mood: session.mood });
     }
 
+    // Save AI reply
     session.history.push({ role: "assistant", content: aiReply });
 
     res.json({
@@ -132,8 +139,10 @@ Rules:
   }
 });
 
+// Serve frontend
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
+// Start server
 app.listen(3000, () => console.log("Server running on port 3000 ✅"));
