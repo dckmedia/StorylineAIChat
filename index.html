@@ -51,7 +51,7 @@ function addMessage(sender, text, mood = "") {
   else if (mood === "neutral") { moodEmoji = "😐"; moodColor = "gray"; }
   else if (mood === "calm") { moodEmoji = "🙂"; moodColor = "green"; }
 
-  if (sender === "Alex ") {
+  if (sender === "Alex") {
     div.innerHTML = `<strong>${sender}:</strong> <p class='chattext'>${text}</p> <span class="mood" style="color:${moodColor}">${moodEmoji}</span>`;
   } else {
     div.innerHTML = `<strong>${sender}:</strong> <p class='chattext'>${text}</p>`;
