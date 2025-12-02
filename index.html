@@ -75,8 +75,13 @@ function sendMessage(message) {
   })
   .then(res => res.json())
   .then(data => {
-    if (data.reply) {
+    if (data.error === "NOT_RESOLVED") {
+      addMessage("Alex", data.message, data.mood || "");
+      finishBtn.disabled = true; // keep finish disabled
+    } else {
       addMessage("Alex", data.reply, data.mood || "");
+      // Enable finish button if session resolved
+      finishBtn.disabled = !data.resolved;
     }
   })
   .catch(err => {
@@ -105,14 +110,24 @@ finishBtn.addEventListener("click", () => {
   })
   .then(res => res.json())
   .then(data => {
-    addMessage("Alex", `Rating: ${data.rating}, Comment: ${data.comment}`);
+    if (data.error === "NOT_RESOLVED") {
+      addMessage("Alex", data.message);
+      finishBtn.disabled = true;
+    } else {
+      addMessage("Alex", `Rating: ${data.rating}, Comment: ${data.comment}`);
+      finishBtn.disabled = true; // optionally disable after rating
+    }
   })
   .catch(err => {
     console.error(err);
     addMessage("Alex", "Error fetching rating.");
   });
 });
+
+// Initially disable finish button
+finishBtn.disabled = true;
 </script>
+
 
 </body>
 </html>
