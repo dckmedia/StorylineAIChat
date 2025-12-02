@@ -5,49 +5,34 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 dotenv.config();
-
 const app = express();
-
-
-
-// Parse JSON bodies
 app.use(express.json());
 
-// Serve static files from the same folder
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(__dirname));
 
-// Memory storage for sessions (for demo purposes)
+// Memory storage for demo
 const sessions = {};
 
-// Chat endpoint
 // Chat endpoint
 app.post("/chat", async (req, res) => {
   const { message, sessionId } = req.body;
 
-  if (!sessionId) {
-    return res.status(400).json({ error: "Missing sessionId" });
-  }
+  if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
 
-  // Initialize session if it doesn't exist
+  // Initialize session
   if (!sessions[sessionId]) {
-    sessions[sessionId] = {
-      mood: "annoyed", // starting mood
-      history: [],
-      resolved: false
-    };
+    sessions[sessionId] = { mood: "annoyed", history: [], resolved: false };
   }
 
   const session = sessions[sessionId];
-
-  // Add learner message to history
   session.history.push({ role: "user", content: message });
 
-  // Detect if learner is asking for rating
+  // Detect rating request
   const ratingAsked = /(rate|rating|score).*(service|today|chat)/i.test(message);
 
-  // Prevent rating if issue is not resolved
+  // Prevent rating if unresolved
   if (ratingAsked && !session.resolved) {
     return res.json({
       error: "NOT_RESOLVED",
@@ -55,48 +40,41 @@ app.post("/chat", async (req, res) => {
     });
   }
 
-  // Prepare system prompt
-  let systemPrompt;
+  // System prompt
+  let systemPrompt = "";
   if (ratingAsked) {
+    // Rating prompt
     systemPrompt = `
-You are Alex, a customer who could not log in to their online account. 
+You are Alex, a customer who could not log in to their account. 
 Based on the conversation history, rate the learner's service on a scale from 1-10.
-- Consider empathy, resolution speed, professionalism.
-- Provide a short comment explaining the rating.
-- Respond in strict JSON format ONLY: { "rating": number, "comment": "short feedback" }
+- Consider the three key skills: empathy, asking clarifying questions, resolving efficiently.
+- Respond in strict JSON ONLY: { "rating": number, "comment": "short feedback" }
 - Do not include any text outside the JSON.
 - Example: { "rating": 9, "comment": "Very helpful and patient." }
 `;
   } else {
+    // Normal chat prompt
     systemPrompt = `
-You are Alex, a customer who recently completed a support chat about being unable to log in to your online account.
-Scenario: You are unsure why the login is failing and need help.
-Rate the learner's performance based on the three communication skills taught in the module:
-1. Empathy
-2. Asking clarifying questions
-3. Resolving the issue efficiently and professionally
+You are Alex, a customer who cannot log in to their account.
+Act mildly frustrated but polite.
+Respond naturally in 2-3 sentences.
 
-Consider:
-- Tone and empathy
-- Relevance and clarity of questions
-- How effectively the issue was resolved
-- Professionalism and communication quality
-
-Behaviour guidelines:
-- Start mildly frustrated but remain polite.
-- If the learner shows empathy, asks clear questions, or provides helpful steps, your mood improves.
-- If the learner is vague, dismissive, or robotic, your frustration increases.
-- Provide information gradually depending on their questions.
-- Keep responses natural and brief (2–3 sentences).
-- If the user asks for a rating before the issue is resolved, respond: "I need a solution first before I can give a rating."
-- If the user provides a working solution (e.g., reset link, temporary password, instructions to log in), you consider the issue resolved.
-- Once you able to login please include the word "RESOLVED" somewhere in your response to indicate the issue is resolved. But dont use ! in the word RESOLVED.
+Rules:
+- Only give information when asked.
+- If the learner provides a working solution (password reset link, temporary password, instructions to log in), include the word RESOLVED somewhere in your response to indicate the issue is resolved.
+- While chatting, continuously assess the learner based on these three skills:
+  1. Empathy – understanding your situation and responding politely.
+  2. Asking clarifying questions – asking relevant questions to understand the problem.
+  3. Resolving efficiently – providing a working solution quickly and clearly.
+- Track your mood: annoyed → neutral → calm depending on how helpful the learner is.
+- If the user asks for a rating before resolution, reply: "Please provide a solution before asking for a rating."
+- Keep responses short and natural.
 `;
   }
 
   const messages = [
     { role: "system", content: systemPrompt },
-    ...session.history.slice(-6) // last few exchanges
+    ...session.history.slice(-6) // last 6 messages for context
   ];
 
   try {
@@ -104,7 +82,7 @@ Behaviour guidelines:
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
@@ -114,41 +92,35 @@ Behaviour guidelines:
     });
 
     const data = await response.json();
-    const aiReply = data.choices[0].message.content.trim();
+    let aiReply = data.choices[0].message.content.trim();
 
-    // Mark session as resolved if AI indicates the issue was fixed
-    if (/should now be able to log in|issue resolved|try logging in now/i.test(aiReply)) {
+    // Check if AI indicates issue resolved
+    if (/RESOLVED/i.test(aiReply)) {
       session.resolved = true;
+      aiReply = aiReply.replace(/RESOLVED/i, "").trim(); // remove keyword for display
     }
 
-    // Handle rating response only if resolved
-    if (ratingAsked && session.resolved) {
-      let ratingObj = { rating: 5, comment: "Average service." }; // fallback
-
+    // Handle rating if requested
+    if (ratingAsked) {
+      let ratingObj = { rating: 5, comment: "Average service." };
       try {
-        // Extract JSON from AI response
         const jsonMatch = aiReply.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          ratingObj = JSON.parse(jsonMatch[0]);
-        }
+        if (jsonMatch) ratingObj = JSON.parse(jsonMatch[0]);
       } catch (err) {
         console.warn("Failed to parse AI JSON:", err);
       }
-
       return res.json(ratingObj);
     }
 
-    // Extract AI mood (optional, e.g., [calm])
+    // Extract mood (optional)
     const moodMatch = aiReply.match(/\[(.*?)\]$/);
     const newMood = moodMatch ? moodMatch[1].toLowerCase() : session.mood;
 
-    // Update session
     session.mood = newMood;
     session.history.push({ role: "assistant", content: aiReply });
 
-    // Respond to learner
     res.json({
-      reply: aiReply.replace(/\[(.*?)\]$/, "").trim(),
+      reply: aiReply,
       mood: newMood,
       resolved: session.resolved
     });
@@ -159,8 +131,7 @@ Behaviour guidelines:
   }
 });
 
-
-// Serve frontend HTML at root
+// Serve frontend
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
