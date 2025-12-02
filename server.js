@@ -80,6 +80,7 @@ Behaviour guidelines:
 - If the learner is vague, dismissive, or robotic, your frustration increases.
 - Provide information gradually depending on their questions.
 - Keep responses natural and brief (2–3 sentences).
+- if the user request rating before complete the conversation and solution, give lower rating.
 `;
   }
 
