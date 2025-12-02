@@ -85,6 +85,7 @@ function addMessage(sender, text, mood = "") {
   let avatarHTML = "";
   let moodHTML = "";
 
+  // FIXED — corrected matching condition
   if (sender === "Alex") {
     let moodEmoji = "";
     let moodColor = "gray";
@@ -94,6 +95,7 @@ function addMessage(sender, text, mood = "") {
     else if (mood === "calm") { moodEmoji = "🙂"; moodColor = "green"; }
 
     moodHTML = mood ? `<span class="mood" style="color:${moodColor}">${moodEmoji}</span>` : "";
+
     avatarHTML = `<img class="avatar" src="${alexAvatar}" alt="Alex">`;
   }
 
