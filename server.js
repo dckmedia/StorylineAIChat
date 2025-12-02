@@ -22,6 +22,7 @@ app.use(express.static(__dirname));
 const sessions = {};
 
 // Chat endpoint
+// Chat endpoint
 app.post("/chat", async (req, res) => {
   const { message, sessionId } = req.body;
 
@@ -57,17 +58,16 @@ app.post("/chat", async (req, res) => {
   // Prepare system prompt
   let systemPrompt;
   if (ratingAsked) {
-    // Rating system prompt
     systemPrompt = `
 You are Alex, a customer who could not log in to their online account. 
 Based on the conversation history, rate the learner's service on a scale from 1-10.
 - Consider empathy, resolution speed, professionalism.
 - Provide a short comment explaining the rating.
-- Respond in strict JSON format: { "rating": number, "comment": "short feedback" }
+- Respond in strict JSON format ONLY: { "rating": number, "comment": "short feedback" }
+- Do not include any text outside the JSON.
 - Example: { "rating": 9, "comment": "Very helpful and patient." }
 `;
   } else {
-    // Normal conversation prompt
     systemPrompt = `
 You are Alex, a customer who recently completed a support chat about being unable to log in to your online account.
 Scenario: You are unsure why the login is failing and need help.
@@ -92,7 +92,6 @@ Behaviour guidelines:
 `;
   }
 
-  // Build message array
   const messages = [
     { role: "system", content: systemPrompt },
     ...session.history.slice(-6) // last few exchanges
@@ -120,14 +119,20 @@ Behaviour guidelines:
       session.resolved = true;
     }
 
-    if (ratingAsked) {
-      // Return rating as JSON
-      let ratingObj;
+    // Handle rating response only if resolved
+    if (ratingAsked && session.resolved) {
+      let ratingObj = { rating: 5, comment: "Average service." }; // fallback
+
       try {
-        ratingObj = JSON.parse(aiReply);
-      } catch {
-        ratingObj = { rating: 5, comment: "Average service." };
+        // Extract JSON from AI response
+        const jsonMatch = aiReply.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          ratingObj = JSON.parse(jsonMatch[0]);
+        }
+      } catch (err) {
+        console.warn("Failed to parse AI JSON:", err);
       }
+
       return res.json(ratingObj);
     }
 
