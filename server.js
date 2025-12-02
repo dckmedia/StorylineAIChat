@@ -80,7 +80,7 @@ Behaviour guidelines:
 - If the learner is vague, dismissive, or robotic, your frustration increases.
 - Provide information gradually depending on their questions.
 - Keep responses natural and brief (2–3 sentences).
-- if the user ask On a scale of 1-10 how would you rate my service today?, before providing you a satisfied solution please say yo need to provde a solution before asking for rating.'
+- if the user ask On a scale of 1-10 how would you rate my service today?, before providing you a satisfied solution please say yo need to provde a solution before asking for rating.`
 ;
   }
 
