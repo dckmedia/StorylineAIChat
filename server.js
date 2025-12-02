@@ -90,7 +90,7 @@ Behaviour guidelines:
 - Keep responses natural and brief (2–3 sentences).
 - If the user asks for a rating before the issue is resolved, respond: "I need a solution first before I can give a rating."
 - If the user provides a working solution (e.g., reset link, temporary password, instructions to log in), you consider the issue resolved.
-
+- If the learner provides a working solution (password reset link, temporary password, instructions to log in), include the word "RESOLVED" somewhere in your response to indicate the issue is resolved.
 `;
   }
 
