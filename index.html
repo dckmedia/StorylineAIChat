@@ -77,37 +77,33 @@ setInterval(() => {
   dots.textContent = dots.textContent.length < 3 ? dots.textContent + "." : ".";
 }, 400);
 
-// Display message in chat
 function addMessage(sender, text, mood = "") {
   const div = document.createElement("div");
-  div.classList.add("message");
+  div.className = sender;
 
-  let avatarHTML = "";
-  let moodHTML = "";
+  let moodEmoji = "";
+  let moodColor = "gray";
 
-  // FIXED — corrected matching condition
+  if (mood === "annoyed") { moodEmoji = "😠"; moodColor = "red"; }
+  else if (mood === "neutral") { moodEmoji = "😐"; moodColor = "gray"; }
+  else if (mood === "calm") { moodEmoji = "🙂"; moodColor = "green"; }
+
+  // FIXED: Show mood for Alex (customer)
   if (sender === "Alex") {
-    let moodEmoji = "";
-    let moodColor = "gray";
-
-    if (mood === "annoyed") { moodEmoji = "😠"; moodColor = "red"; }
-    else if (mood === "neutral") { moodEmoji = "😐"; moodColor = "gray"; }
-    else if (mood === "calm") { moodEmoji = "🙂"; moodColor = "green"; }
-
-    moodHTML = mood ? `<span class="mood" style="color:${moodColor}">${moodEmoji}</span>` : "";
-
-    avatarHTML = `<img class="avatar" src="${alexAvatar}" alt="Alex">`;
+    div.innerHTML = `
+      <strong>${sender}:</strong>
+      <p class='chattext'>${text}</p>
+      <span class="mood" style="color:${moodColor}">${moodEmoji}</span>
+    `;
+  } else {
+    div.innerHTML = `
+      <strong>${sender}:</strong>
+      <p class='chattext'>${text}</p>
+    `;
   }
 
-  div.innerHTML = `
-    ${avatarHTML}
-    <div class="text-block">
-      <strong>${sender}:</strong> <p class='chattext'>${text}</p> ${moodHTML}
-    </div>
-  `;
-
   chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+  chat.scrollTop = chat.scrollHeight; // auto scroll
 }
 
 // Show typing
